@@ -8,14 +8,6 @@ import xlwings as xw
 
 pastas_monitoradas = [r'\\Sch-fns03a\ds1\Inovacao1\Guilherme\Projetos\Novo IVR\Teste']
 
-def encontrar_valor_linha_abaixo(linhas, palavra_buscadas, get_valor_proxima_linha=False):
-    for i, linha in enumerate(linhas):
-        if any(palavra_buscada in linha for palavra_buscada in palavra_buscadas):
-            if get_valor_proxima_linha and i + 1 < len(linhas):
-                return linhas[i + 1].strip()
-            else:
-                return linha.strip()
-    return None
 
 def ler_arquivo_txt_zeiss(caminho):
     try:
@@ -44,9 +36,9 @@ def ler_arquivo_txt_zeiss(caminho):
 
                     for i, linha in enumerate(todas_linhas):
                         if "Cota" in linha or "COTA" in linha:
-                            cotas_linhas = todas_linhas[i].strip()
+                            cotas_linhas = todas_linhas[i:]
                             break
-                    for info_cotas in cotas_linhas[14:]:
+                    for info_cotas in cotas_linhas:
                         if info_cotas and not info_cotas[:25].isspace(): 
                             nomes_cotas.append(info_cotas[:25].strip() + "_" + info_cotas[25:35].strip())
                             valores_encontrados.append(info_cotas[35:46].strip())
@@ -61,29 +53,9 @@ def ler_arquivo_txt_zeiss(caminho):
                             if not tolinf:
                                 tolinf = "0.000"
                             
-                            
-                            planilha.range("A" + str(linha_celula)).value = nome
-                            planilha.range("A" + str(linha_celula)).color = (0, 255, 0)
-
-
                             if not atual:
                                 nominal  = "0.000"
                                 atual = desvio
-                                planilha.range("Z" + str(linha_celula)).value = Decimal(nominal)
-                                planilha.range("AA" + str(linha_celula)).value = Decimal(nominal) + Decimal(tolsup)
-                                planilha.range("AD" + str(linha_celula)).value = Decimal(nominal)
-                                planilha.range("AE" + str(linha_celula)).value = Decimal(nominal) + Decimal(tolsup)
-                            else:
-                                planilha.range("Z" + str(linha_celula)).value = Decimal(nominal) + Decimal(tolinf)
-                                planilha.range("AA" + str(linha_celula)).value = Decimal(nominal) + Decimal(tolsup)
-
-                                planilha.range("AD" + str(linha_celula)).value = Decimal(nominal) + (Decimal(tolinf) * Decimal(0.7))
-                                planilha.range("AE" + str(linha_celula)).value = Decimal(nominal) + (Decimal(tolsup) * Decimal(0.7))
-
-                            value_cell.value = atual
-                            
-
-                    peca = dados_medicao[66:].strip()
 
                     #Abrir planilha e configurar para inserir dados
                     app = xw.App(visible=False)
@@ -102,6 +74,8 @@ def ler_arquivo_txt_zeiss(caminho):
                         primeira_celula_cota = planilha.range("A10").end("down").offset(row_offset=1).address
                     linha_celula = int(primeira_celula_cota.split('$')[2])
                     
+                    peca = dados_medicao[66:].strip()
+
                     celula_numero_peca = planilha.range("B699")
                     while celula_numero_peca.column < 26:  
                         if celula_numero_peca.value == float(peca):
