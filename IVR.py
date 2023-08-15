@@ -7,272 +7,280 @@ from watchdog.events import FileSystemEventHandler
 import xlwings as xw
 
 pastas_monitoradas = [r'\\Sch-fns03a\ds1\Qualidade1\2021\05.Metrologia\2021\23 Cep Zeiss',
-                    r'\\Sch-fns03a\ds1\Qualidade1\2021\05.Metrologia\2021\23 Cep Dea',]
-
+                      r'\\Sch-fns03a\ds1\Qualidade1\2021\05.Metrologia\2021\23 Cep Dea']
 
 def ler_arquivo_txt_zeiss(caminho):
     try:
         with open(caminho, 'r', encoding='latin-1') as arquivo:
-            linhas = arquivo.readlines()
+            todas_linhas = arquivo.readlines()
             
-            linha = linhas[5]
-
-            codigo = linha[55:66].strip()
-            planilha = encontrar_planilha(codigo)
-            if(planilha != None):
-                produto = linha[:9].strip()
-                situacao = linha[28:42].strip()
-                data = linha[42:52].strip()
-                peca = linha[66:].strip()
-                
-                print("Produto:", produto)
-                print("Situação:", situacao)
-                print("Data:", data)
-                print("Código:", codigo)
-                print("Peça:", peca)
-
-                app = xw.App(visible=False)
-                workbook = app.books.open(planilha)
-                sheet = workbook.sheets.active
-
-                sheet.api.Unprotect()
-
-                rng = sheet.range("A10:A698")
-
-                rng.api.Rows.Hidden = False
-
-                next_cell = nullcontext
-                for row_cell in range(10, 388 + 1):
-                    
-                    cor_celula = sheet.range("A" + str(row_cell)).color
-                    
-                    if cor_celula == (0, 255, 0):
-                        next_cell = sheet.range("A" + str(row_cell))
+            for i, linha in enumerate(todas_linhas):
+                if "Plano Medição" in linha or "ID Teste" in linha or "Data" in linha or "Comentario" in linha:
+                    if i + 1 < len(todas_linhas):
+                        dados_medicao = todas_linhas[i + 1].strip()
                         break
-                if next_cell == nullcontext:
-                    next_cell = sheet.range("A10").end("down").offset(row_offset=1)
-                next_cell_position = next_cell.address
-                row_cell = int(next_cell_position.split('$')[2])
-                
-                current_cell = sheet.range("B699")
-                while current_cell.column < 26:  
-                    if current_cell.value == float(peca):
-                        break
-                    current_cell = current_cell.offset(column_offset=1)
 
-                column_letter = xw.utils.col_name(current_cell.column + 1)
+            codigo = dados_medicao[55:66].strip()
+            if(codigo != ""):
+                planilha = encontrar_caminho_planilha(codigo)
+                if(planilha == None):
+                    print("Planilha não encontrada")
+                else:
+                    nomes_cotas = []
+                    valores_encontrados = []
+                    nominais = []
+                    tolerancias_superiores = []
+                    tolerancias_inferiores = []
+                    desvios = []
 
-                for linha in linhas[14:]:
-                
-                    if linha and not linha[:25].isspace(): 
-                        cota = linha[:25].strip()
-                        descricao = linha[25:35].strip()
-                        nome = cota + "_" + descricao
-                        atual = linha[35:46].strip()
-                        nominal = linha[49:58].strip()
-                        tolsup = linha[58:67].strip()
-                        tolinf = linha[67:76].strip()
-                        desvio = linha[76:85].strip()
+                    for i, linha in enumerate(todas_linhas):
+                        if "Cota" in linha or "COTA" in linha:
+                            cotas_linhas = todas_linhas[i:]
+                            break
 
-                        if not tolsup:
-                            tolsup = "0.000"
+                    for info_cotas in cotas_linhas:
+                        if info_cotas and not info_cotas[:25].isspace(): 
+                            valor_encontrado = info_cotas[35:46].strip()
+                            nominal = info_cotas[49:58].strip()
+                            tolerancia_superior = info_cotas[58:67].strip()
+                            tolerancia_inferior = info_cotas[67:76].strip()
+                            desvio = info_cotas[76:85].strip()
+                            peca = dados_medicao[66:].strip()
 
-                        if not tolinf:
-                            tolinf = "0.000"
-                        
-                        value_cell = sheet.range(column_letter + str(row_cell))
-                        
-                        sheet.range("A" + str(row_cell)).value = nome
-                        sheet.range("A" + str(row_cell)).color = (0, 255, 0)
+                            if not tolerancia_superior:
+                                tolerancia_superior = "0.000"
 
-                        if not atual:
-                            nominal  = "0.000"
-                            atual = desvio
-                            sheet.range("Z" + str(row_cell)).value = Decimal(nominal)
-                            sheet.range("AA" + str(row_cell)).value = Decimal(nominal) + Decimal(tolsup)
-                            sheet.range("AD" + str(row_cell)).value = Decimal(nominal)
-                            sheet.range("AE" + str(row_cell)).value = Decimal(nominal) + Decimal(tolsup)
+                            if not tolerancia_inferior:
+                                tolerancia_inferior = "0.000"
+                            
+                            if not valor_encontrado:
+                                nominal  = "0.000"
+                                valor_encontrado = desvio
+
+                            nomes_cotas.append(info_cotas[:25].strip() + "_" + info_cotas[25:35].strip())
+                            valores_encontrados.append(valor_encontrado)
+                            nominais.append(nominal)
+                            tolerancias_superiores.append(tolerancia_superior)
+                            tolerancias_inferiores.append(tolerancia_inferior)
+                            desvios.append(desvio)
+
+                    #Abrir planilha e configurar para inserir dados
+                    app = xw.App(visible=False)
+                    workbook = app.books.open(planilha)
+                    planilha = workbook.sheets.active
+                    planilha.api.Unprotect()
+                    rng = planilha.range("A10:A698")
+                    rng.api.Rows.Hidden = False
+
+                    primeira_celula_cota = nullcontext
+                    for linha_celula in range(10, 388 + 1):                    
+                        if planilha.range("A" + str(linha_celula)).color == (0, 255, 0):
+                            primeira_celula_cota = planilha.range("A" + str(linha_celula)).address
+                            break
+                    if primeira_celula_cota == nullcontext:
+                        primeira_celula_cota = planilha.range("A10").end("down").offset(row_offset=1).address
+                    linha_celula = int(primeira_celula_cota.split('$')[2])
+
+                    celula_numero_peca = planilha.range("B699")
+                    while celula_numero_peca.column < 26:  
+                        if celula_numero_peca.value == float(peca):
+                            break
+                        celula_numero_peca = celula_numero_peca.offset(column_offset=1)
+
+                    coluna_celula_numero_peca = xw.utils.col_name(celula_numero_peca.column + 1)
+
+                    for i, valor_encontrado in enumerate(valores_encontrados):
+                        valor_encontrado = valores_encontrados[i]
+                        nominal = nominais[i]
+                        tolsup = tolerancias_superiores[i]
+                        tolinf = tolerancias_inferiores[i]
+                        desvio = desvios[i]
+                        nome = nomes_cotas[i]
+                            
+                        value_cell = planilha.range(coluna_celula_numero_peca + str(linha_celula))
+
+                        planilha.range("A" + str(linha_celula)).value = nome
+                        planilha.range("A" + str(linha_celula)).color = (0, 255, 0)
+
+                        if nominal == "0.000":
+                            planilha.range("Z" + str(linha_celula)).value = Decimal(nominal)
+                            planilha.range("AA" + str(linha_celula)).value = Decimal(nominal) + Decimal(tolsup)
+                            planilha.range("AD" + str(linha_celula)).value = Decimal(nominal)
+                            planilha.range("AE" + str(linha_celula)).value = Decimal(nominal) + Decimal(tolsup)
                         else:
-                            sheet.range("Z" + str(row_cell)).value = Decimal(nominal) + Decimal(tolinf)
-                            sheet.range("AA" + str(row_cell)).value = Decimal(nominal) + Decimal(tolsup)
+                            planilha.range("Z" + str(linha_celula)).value = Decimal(nominal) + Decimal(tolinf)
+                            planilha.range("AA" + str(linha_celula)).value = Decimal(nominal) + Decimal(tolsup)
 
-                            sheet.range("AD" + str(row_cell)).value = Decimal(nominal) + (Decimal(tolinf) * Decimal(0.7))
-                            sheet.range("AE" + str(row_cell)).value = Decimal(nominal) + (Decimal(tolsup) * Decimal(0.7))
+                            planilha.range("AD" + str(linha_celula)).value = Decimal(nominal) + (Decimal(tolinf) * Decimal(0.7))
+                            planilha.range("AE" + str(linha_celula)).value = Decimal(nominal) + (Decimal(tolsup) * Decimal(0.7))
 
-                        value_cell.value = atual
-                        
-                        row_cell = row_cell + 1
-                        print(nome + " " + atual + " " + nominal + " " + tolsup + " " + tolinf + " " + desvio)
+                        value_cell.value = valor_encontrado
+                            
+                        linha_celula = linha_celula + 1
 
-                next_cell = sheet.range("A10").end("down").offset(row_offset=1)
-                next_last_cell = next_cell.end("down").offset(row_offset=-1)
-                next_last_cell_position = next_last_cell.address
-                next_cell_position = next_cell.address
-                range_address = next_cell_position.replace("$", "") + ":" + next_last_cell_position.replace("$", "") 
-                sheet.range(range_address).api.Rows.Hidden = True
-                sheet.api.Protect()
-                workbook.save()
-                workbook.close()
-                app.quit()
+                    primeira_celula_cota = planilha.range("A10").end("down").offset(row_offset=1)
+                    next_last_cell = primeira_celula_cota.end("down").offset(row_offset=-1)
+                    next_last_cell_position = next_last_cell.address
+                    primeira_celula_cota = primeira_celula_cota.address
+                    range_address = primeira_celula_cota.replace("$", "") + ":" + next_last_cell_position.replace("$", "") 
+                    planilha.range(range_address).api.Rows.Hidden = True
+                    planilha.api.Protect()
+                    workbook.save()
+                    workbook.close()
+                    app.quit()
             else:
-                print("Planilha não encontrada")
+                print("Código não encontrado!")
     except Exception as e:
-        print(f"Ocorreu um erro em ler_arquivo_txt_zeiss: {e}")
-    finally:
-    # Código para fechar o Excel
-        if 'app' in locals() and app is not None:
-            try:
-                app.quit()
-            except Exception as e:
-                print(f"Erro ao fechar o Excel: {e}")
+        print(f"Ocorreu um erro em ler_arquivo_txt: {e}")
 
 def ler_arquivo_mea_mistral(caminho):
     try:
         with open(caminho, 'r', encoding='latin-1') as arquivo:
-            linhas = arquivo.readlines()
-            linha4 = linhas[4]
-            linha5 = linhas[5]
-            peca = linha5[5:].strip()
-                
-            codigo = linha4[7:].strip()
-
+            todas_linhas = arquivo.readlines()
             
-            planilha = encontrar_planilha(codigo)
-            if(planilha != None):
-
-                app = xw.App(visible=False)
-                workbook = app.books.open(planilha)
-                sheet = workbook.sheets.active
-
-                sheet.api.Unprotect()
-
-                rng = sheet.range("A10:A698")
-
-                rng.api.Rows.Hidden = False
-
-                next_cell = nullcontext
-                for row_cell in range(10, 388 + 1):
+            for i, linha in enumerate(todas_linhas):
+                if '02' in linha:
+                    codigo = linha[7:].strip()
+                    peca = todas_linhas[i + 1][5:].strip()
+                    break               
                     
-                    cor_celula = sheet.range("A" + str(row_cell)).color
+            if codigo != "":
+                caminho_planilha = encontrar_caminho_planilha(codigo)
+                if not caminho_planilha:
+                    print("Planilha não encontrada")
+                else:
+                    nomes_cotas = []
+                    valores_encontrados = []
+                    nominais = []
+                    tolerancias_superiores = []
+                    tolerancias_inferiores = []
+
+                    for i, linha in enumerate(todas_linhas):
+                        if "Cota" in linha or "COTA" in linha:
+                            cotas_linhas = todas_linhas[i:]
+                            break
+
+                    for info_cotas in cotas_linhas:
+                            if info_cotas and not info_cotas[:25].isspace(): 
+                                nomes_cotas.append(info_cotas[:14].strip() + "_" + info_cotas[14:16].strip())
+                                valores_encontrados.append(info_cotas[16:31].strip())
+                                nominais.append(info_cotas[30:44].strip())
+                                tolerancias_superiores.append(info_cotas[56:68].strip())
+                                tolerancias_inferiores.append(info_cotas[43:56].strip())
+
+                    app = xw.App(visible=False)
+                    workbook = app.books.open(caminho_planilha)
+                    planilha = workbook.sheets.active
+
+                    planilha.api.Unprotect()
+
+                    rng = planilha.range("A10:A698")
+
+                    rng.api.Rows.Hidden = False
+
+                    primeira_celula_cota = nullcontext
+                    for linha_celula in range(10, 388 + 1):
+                        
+                        cor_celula = planilha.range("A" + str(linha_celula)).color
+                        
+                        if cor_celula == (0, 255, 0):
+                            primeira_celula_cota = planilha.range("A" + str(linha_celula))
+                            break
+                    if primeira_celula_cota == nullcontext:
+                        primeira_celula_cota = planilha.range("A10").end("down").offset(row_offset=1)
+
+                    primeira_celula_cota = primeira_celula_cota.address
+                    linha_celula = int(primeira_celula_cota.split('$')[2])
                     
-                    if cor_celula == (0, 255, 0):
-                        next_cell = sheet.range("A" + str(row_cell))
-                        break
-                if next_cell == nullcontext:
-                    next_cell = sheet.range("A10").end("down").offset(row_offset=1)
+                    celula_numero_peca = planilha.range("B699")
+                    while celula_numero_peca.column < 26:  # Coluna Z é a coluna de número 26
+                        if celula_numero_peca.value == float(peca):
+                            break
+                        celula_numero_peca = celula_numero_peca.offset(column_offset=1)
 
-                next_cell_position = next_cell.address
-                row_cell = int(next_cell_position.split('$')[2])
-                
-                current_cell = sheet.range("B699")
-                while current_cell.column < 26:  # Coluna Z é a coluna de número 26
-                    if current_cell.value == float(peca):
-                        break
-                    current_cell = current_cell.offset(column_offset=1)
+                    coluna_celula_numero_peca = xw.utils.col_name(celula_numero_peca.column + 1)
 
-                column_letter = xw.utils.col_name(current_cell.column + 1)
+                    for i, valor_encontrado in enumerate(valores_encontrados):
+                            valor_encontrado = valores_encontrados[i]
+                            nominal = nominais[i]
+                            tolsup = tolerancias_superiores[i]
+                            tolinf = tolerancias_inferiores[i]
+                            nome = nomes_cotas[i]
+                                
+                            value_cell = planilha.range(coluna_celula_numero_peca + str(linha_celula))
 
-                for linha in linhas[6:]:
-                
-                    if linha and not linha[:14].isspace():
-                        cota = linha[:14].strip()
-                        descricao = linha[14:16].strip()
-                        nome = cota + "_" + descricao
-                        atual = linha[16:31].strip()
-                        nominal = linha[30:44].strip()
-                        tolsup = linha[56:68].strip()
-                        tolinf = linha[43:56].strip()
+                            planilha.range("A" + str(linha_celula)).value = nome
+                            planilha.range("A" + str(linha_celula)).color = (0, 255, 0)
 
+                            if nominal == "0.000":
+                                planilha.range("Z" + str(linha_celula)).value = Decimal(nominal)
+                                planilha.range("AA" + str(linha_celula)).value = Decimal(nominal) + Decimal(tolsup)
+                                planilha.range("AD" + str(linha_celula)).value = Decimal(nominal)
+                                planilha.range("AE" + str(linha_celula)).value = Decimal(nominal) + Decimal(tolsup)
+                            else:
+                                planilha.range("Z" + str(linha_celula)).value = Decimal(nominal) - Decimal(tolinf)
+                                planilha.range("AA" + str(linha_celula)).value = Decimal(nominal) + Decimal(tolsup)
 
-                        if not tolsup:
-                            tolsup = "0.000"
+                                planilha.range("AD" + str(linha_celula)).value = Decimal(nominal) - (Decimal(tolinf) * Decimal(0.7))
+                                planilha.range("AE" + str(linha_celula)).value = Decimal(nominal) + (Decimal(tolsup) * Decimal(0.7))
 
-                        if not tolinf:
-                            tolinf = "0.000"
-                        
-                        print(nome + " " + atual + " " + nominal + " " + tolsup + " " + tolinf)
-                        value_cell = sheet.range(column_letter + str(row_cell))
-                        
-                        sheet.range("A" + str(row_cell)).value = nome
-                        sheet.range("A" + str(row_cell)).color = (0, 255, 0)
+                            value_cell.value = valor_encontrado
+                                
+                            linha_celula = linha_celula + 1
 
-                        if not atual:
-                            nominal  = "0.000"
-                            sheet.range("Z" + str(row_cell)).value = Decimal(nominal)
-                            sheet.range("AA" + str(row_cell)).value = Decimal(nominal) + Decimal(tolsup)
-
-                            sheet.range("AD" + str(row_cell)).value = Decimal(nominal)
-                            sheet.range("AE" + str(row_cell)).value = Decimal(nominal) + Decimal(tolsup)
-                        else:
-                            sheet.range("Z" + str(row_cell)).value = Decimal(nominal) - Decimal(tolinf)
-                            sheet.range("AA" + str(row_cell)).value = Decimal(nominal) + Decimal(tolsup)
-
-                            sheet.range("AD" + str(row_cell)).value = Decimal(nominal) - (Decimal(tolinf) * Decimal(0.7))
-                            sheet.range("AE" + str(row_cell)).value = Decimal(nominal) + (Decimal(tolsup) * Decimal(0.7))
-
-                        value_cell.value = atual
-                        
-                        row_cell = row_cell + 1
-                        print(nome + " " + atual + " " + nominal + " " + tolsup + " " + tolinf)
-
-                next_cell = sheet.range("A10").end("down").offset(row_offset=1)
-                next_last_cell = next_cell.end("down").offset(row_offset=-1)
-                next_last_cell_position = next_last_cell.address
-                next_cell_position = next_cell.address
-                range_address = next_cell_position.replace("$", "") + ":" + next_last_cell_position.replace("$", "") 
-                sheet.range(range_address).api.Rows.Hidden = True
-                sheet.api.Protect()
-                workbook.save()
-                workbook.close()
-                app.quit()
+                    primeira_celula_cota = planilha.range("A10").end("down").offset(row_offset=1)
+                    next_last_cell = primeira_celula_cota.end("down").offset(row_offset=-1)
+                    next_last_cell_position = next_last_cell.address
+                    primeira_celula_cota = primeira_celula_cota.address
+                    range_address = primeira_celula_cota.replace("$", "") + ":" + next_last_cell_position.replace("$", "") 
+                    planilha.range(range_address).api.Rows.Hidden = True
+                    planilha.api.Protect()
+                    workbook.save()
+                    workbook.close()
+                    app.quit()
             else:
-                print("Planilha não encontrada")
+                print("Código não encontrado!")
     except Exception as e:
-        print(f"Ocorreu um erro em ler_arquivo_mea_mistral: {e}")
-    finally:
-    # Código para fechar o Excel
-        if 'app' in locals() and app is not None:
-            try:
-                app.quit()
-            except Exception as e:
-                print(f"Erro ao fechar o Excel: {e}")
+        print(f"Ocorreu um erro em ler_arquivo_txt: {e}")
 
-def encontrar_planilha(codigo):
-    for arquivo in os.listdir(r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Bosch'):
-        if arquivo.endswith('.xlsx') or arquivo.endswith('.xlsm'):
-            if arquivo.find(codigo) != -1:
-                return os.path.join(r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Bosch', arquivo)
-    for arquivo in os.listdir(r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Spacer'):
-        if arquivo.endswith('.xlsx') or arquivo.endswith('.xlsm'):
-            if arquivo.find(codigo) != -1:
-                return os.path.join(r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Spacer', arquivo)
+
+def encontrar_caminho_planilha(codigo):
+    pastas_planilhas = [r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Bosch',r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Spacer']
+    for pasta in pastas_planilhas:
+        for arquivo in os.listdir(pasta):
+            if arquivo.endswith('.xlsm'):
+                if arquivo.find(codigo) != -1:
+                    return os.path.join(pasta, arquivo)
     return None    
 
 class ArquivoHandler(FileSystemEventHandler):
+    def process_file(self, file_path):
+        time.sleep(1)
+        if file_path.endswith('.txt'):
+            ler_arquivo_txt_zeiss(file_path)
+        elif file_path.endswith('.MEA'):
+            ler_arquivo_mea_mistral(file_path)
+        print(f'Arquivo processado: {file_path}')
+
     def on_created(self, event):
         if event.is_directory:
             return
-        elif event.src_path.endswith('.txt'):
-            time.sleep(1)
-            ler_arquivo_txt_zeiss(event.src_path)
-            print(f'Arquivo processado: {event.src_path}')
-        elif event.src_path.endswith('.MEA'):
-            time.sleep(1)
-            ler_arquivo_mea_mistral(event.src_path)
-            print(f'Arquivo processado: {event.src_path}')
+        self.process_file(event.src_path)
 
-observers = [Observer() for _ in range(len(pastas_monitoradas))]
-for i, pasta in enumerate(pastas_monitoradas):
+
+if __name__ == "__main__":
+    observer = Observer()
     event_handler = ArquivoHandler()
-    observers[i].schedule(event_handler, path=pasta, recursive=False)
-    observers[i].start()
 
-try:
-    while True:
-        time.sleep(1)
-except KeyboardInterrupt:
-    for observer in observers:
+    for pasta in pastas_monitoradas:
+        observer.schedule(event_handler, path=pasta, recursive=False)
+
+    observer.start()
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
         observer.stop()
 
-for observer in observers:
     observer.join()
