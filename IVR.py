@@ -6,21 +6,36 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import xlwings as xw
 
+def encontrar_caminho_planilha(codigo):
+    for pasta in pastas_monitoradas:
+        for root, dirs, files in os.walk(pasta):
+            for file in files:
+                if file.endswith(".xlsm"):
+                    if codigo in file:
+                        return os.path.join(root, file)
+
+
+pastas_planilhas = [r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Bosch',
+                    r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Spacer']
+
 pastas_monitoradas = [r'\\Sch-fns03a\ds1\Qualidade1\2021\05.Metrologia\2021\23 Cep Zeiss',
                       r'\\Sch-fns03a\ds1\Qualidade1\2021\05.Metrologia\2021\23 Cep Dea']
+
+def buscar_dados_medicao(todas_linhas,palavras_chave):
+    for i, linha in enumerate(todas_linhas):
+        for palavra in palavras_chave:
+            if palavra in linha:
+                dados_medicao = todas_linhas[i + 1].strip()
+                codigo = dados_medicao[55:66].strip()
+                return codigo,dados_medicao
 
 def ler_arquivo_txt_zeiss(caminho):
     try:
         with open(caminho, 'r', encoding='latin-1') as arquivo:
             todas_linhas = arquivo.readlines()
             
-            for i, linha in enumerate(todas_linhas):
-                if "Plano Medição" in linha or "ID Teste" in linha or "Data" in linha or "Comentario" in linha:
-                    if i + 1 < len(todas_linhas):
-                        dados_medicao = todas_linhas[i + 1].strip()
-                        break
+            codigo,dados_medicao = buscar_dados_medicao(todas_linhas,["Plano Medição","ID Teste","Data","Comentario"])
 
-            codigo = dados_medicao[55:66].strip()
             if(codigo != ""):
                 planilha = encontrar_caminho_planilha(codigo)
                 if(planilha == None):
@@ -132,17 +147,27 @@ def ler_arquivo_txt_zeiss(caminho):
                 print("Código não encontrado!")
     except Exception as e:
         print(f"Ocorreu um erro em ler_arquivo_txt: {e}")
+    finally:
+        try:
+            workbook.close()
+            app.quit()
+        except:
+            pass
+
+def buscar_dados_mea_mistral(todas_linhas):
+    for i, linha in enumerate(todas_linhas):
+        if '02' in linha:
+            codigo = linha[7:].strip()
+            peca = todas_linhas[i + 1][5:].strip()
+            break 
+    return codigo, peca
 
 def ler_arquivo_mea_mistral(caminho):
     try:
         with open(caminho, 'r', encoding='latin-1') as arquivo:
             todas_linhas = arquivo.readlines()
             
-            for i, linha in enumerate(todas_linhas):
-                if '02' in linha:
-                    codigo = linha[7:].strip()
-                    peca = todas_linhas[i + 1][5:].strip()
-                    break               
+            codigo, peca = buscar_dados_mea_mistral(todas_linhas)       
                     
             if codigo != "":
                 caminho_planilha = encontrar_caminho_planilha(codigo)
@@ -155,6 +180,7 @@ def ler_arquivo_mea_mistral(caminho):
                     tolerancias_superiores = []
                     tolerancias_inferiores = []
 
+                    
                     for i, linha in enumerate(todas_linhas):
                         if "Cota" in linha or "COTA" in linha:
                             cotas_linhas = todas_linhas[i:]
@@ -242,6 +268,12 @@ def ler_arquivo_mea_mistral(caminho):
                 print("Código não encontrado!")
     except Exception as e:
         print(f"Ocorreu um erro em ler_arquivo_txt: {e}")
+    finally:
+        try:
+            workbook.close()
+            app.quit()
+        except:
+            pass
 
 
 def encontrar_caminho_planilha(codigo):
@@ -268,11 +300,17 @@ class ArquivoHandler(FileSystemEventHandler):
         self.process_file(event.src_path)
 
 
+
+class ArquivoHandler(FileSystemEventHandler):
+    def on_modified(self, event):
+        print(f"Arquivo {event.src_path} foi modificado!")
+
+
 if __name__ == "__main__":
     observer = Observer()
-    event_handler = ArquivoHandler()
-
     for pasta in pastas_monitoradas:
+        event_handler = ArquivoHandler()
+
         observer.schedule(event_handler, path=pasta, recursive=False)
 
     observer.start()
