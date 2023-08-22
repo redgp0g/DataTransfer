@@ -1,4 +1,5 @@
 from contextlib import nullcontext
+from datetime import datetime
 from decimal import Decimal
 import os
 import time
@@ -155,11 +156,14 @@ def ler_arquivo_txt_zeiss(caminho):
             pass
 
 def buscar_dados_mea_mistral(todas_linhas):
+    padrao = "M" + str(datetime.now().year)[2:] + str(datetime.now().day).zfill(2)
     for i, linha in enumerate(todas_linhas):
         if '02' in linha:
-            codigo = linha[7:].strip()
-            peca = todas_linhas[i + 1][5:].strip()
-            break 
+            if padrao in linha:
+                #definir para a variavel codigo o valor a partir da primeira posição do padrão
+                codigo = linha[linha.index(padrao):].strip()
+                peca = todas_linhas[i + 1][5:].strip()
+                break 
     return codigo, peca
 
 def ler_arquivo_mea_mistral(caminho):
@@ -277,7 +281,8 @@ def ler_arquivo_mea_mistral(caminho):
 
 
 def encontrar_caminho_planilha(codigo):
-    pastas_planilhas = [r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Bosch',r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Spacer']
+    pastas_planilhas = [r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Bosch',
+                        r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Spacer']
     for pasta in pastas_planilhas:
         for arquivo in os.listdir(pasta):
             if arquivo.endswith('.xlsm'):
@@ -300,17 +305,26 @@ class ArquivoHandler(FileSystemEventHandler):
         self.process_file(event.src_path)
 
 
-
 class ArquivoHandler(FileSystemEventHandler):
-    def on_modified(self, event):
-        print(f"Arquivo {event.src_path} foi modificado!")
+    def process_file(self, file_path):
+        time.sleep(1)
+        if file_path.endswith('.txt'):
+            ler_arquivo_txt_zeiss(file_path)
+        elif file_path.endswith('.MEA'):
+            ler_arquivo_mea_mistral(file_path)
+        print(f'Arquivo processado: {file_path}')
+
+    def on_created(self, event):
+        if event.is_directory:
+            return
+        self.process_file(event.src_path)
 
 
 if __name__ == "__main__":
     observer = Observer()
-    for pasta in pastas_monitoradas:
-        event_handler = ArquivoHandler()
+    event_handler = ArquivoHandler()
 
+    for pasta in pastas_monitoradas:
         observer.schedule(event_handler, path=pasta, recursive=False)
 
     observer.start()
