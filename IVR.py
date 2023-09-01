@@ -15,14 +15,11 @@ def encontrar_caminho_planilha(codigo):
                     if codigo in file:
                         return os.path.join(root, file)
 
+pastas_planilhas = [r'\\Sch-fns03a\ds1\Inovacao1\Guilherme\Projetos\Novo IVR\Teste']
 
-pastas_planilhas = [r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Bosch',
-                    r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Spacer']
+pastas_monitoradas = [r'\\Sch-fns03a\ds1\Inovacao1\Guilherme\Projetos\Novo IVR\Teste']
 
-pastas_monitoradas = [r'\\Sch-fns03a\ds1\Qualidade1\2021\05.Metrologia\2021\23 Cep Zeiss',
-                      r'\\Sch-fns03a\ds1\Qualidade1\2021\05.Metrologia\2021\23 Cep Dea']
-
-def buscar_dados_medicao(todas_linhas,palavras_chave):
+def buscar_dados_zeiss(todas_linhas,palavras_chave):
     for i, linha in enumerate(todas_linhas):
         for palavra in palavras_chave:
             if palavra in linha:
@@ -35,7 +32,7 @@ def ler_arquivo_txt_zeiss(caminho):
         with open(caminho, 'r', encoding='latin-1') as arquivo:
             todas_linhas = arquivo.readlines()
             
-            codigo,dados_medicao = buscar_dados_medicao(todas_linhas,["Plano Medição","ID Teste","Data","Comentario"])
+            codigo,dados_medicao = buscar_dados_zeiss(todas_linhas,["Plano Medição","ID Teste","Data","Comentario"])
 
             if(codigo != ""):
                 planilha = encontrar_caminho_planilha(codigo)
@@ -80,7 +77,6 @@ def ler_arquivo_txt_zeiss(caminho):
                             tolerancias_inferiores.append(tolerancia_inferior)
                             desvios.append(desvio)
 
-                    #Abrir planilha e configurar para inserir dados
                     app = xw.App(visible=False)
                     workbook = app.books.open(planilha)
                     planilha = workbook.sheets.active
@@ -160,7 +156,6 @@ def buscar_dados_mea_mistral(todas_linhas):
     for i, linha in enumerate(todas_linhas):
         if '02' in linha:
             if padrao in linha:
-                #definir para a variavel codigo o valor a partir da primeira posição do padrão
                 codigo = linha[linha.index(padrao):].strip()
                 peca = todas_linhas[i + 1][5:].strip()
                 break 
@@ -183,7 +178,6 @@ def ler_arquivo_mea_mistral(caminho):
                     nominais = []
                     tolerancias_superiores = []
                     tolerancias_inferiores = []
-
                     
                     for i, linha in enumerate(todas_linhas):
                         if "Cota" in linha or "COTA" in linha:
@@ -191,12 +185,13 @@ def ler_arquivo_mea_mistral(caminho):
                             break
 
                     for info_cotas in cotas_linhas:
-                            if info_cotas and not info_cotas[:25].isspace(): 
-                                nomes_cotas.append(info_cotas[:14].strip() + "_" + info_cotas[14:16].strip())
-                                valores_encontrados.append(info_cotas[16:31].strip())
-                                nominais.append(info_cotas[30:44].strip())
-                                tolerancias_superiores.append(info_cotas[56:68].strip())
-                                tolerancias_inferiores.append(info_cotas[43:56].strip())
+                            if info_cotas and not info_cotas[:25].isspace():
+                                if info_cotas[43:56].strip() != "0.000000" or info_cotas[56:68].strip() != "0.000000":
+                                    nomes_cotas.append(info_cotas[:14].strip() + "_" + info_cotas[14:16].strip())
+                                    valores_encontrados.append(info_cotas[16:31].strip())
+                                    nominais.append(info_cotas[30:44].strip())
+                                    tolerancias_superiores.append(info_cotas[56:68].strip())
+                                    tolerancias_inferiores.append(info_cotas[43:56].strip())
 
                     app = xw.App(visible=False)
                     workbook = app.books.open(caminho_planilha)
@@ -279,10 +274,7 @@ def ler_arquivo_mea_mistral(caminho):
         except:
             pass
 
-
 def encontrar_caminho_planilha(codigo):
-    pastas_planilhas = [r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Bosch',
-                        r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Spacer']
     for pasta in pastas_planilhas:
         for arquivo in os.listdir(pasta):
             if arquivo.endswith('.xlsm'):
@@ -303,7 +295,6 @@ class ArquivoHandler(FileSystemEventHandler):
         if event.is_directory:
             return
         self.process_file(event.src_path)
-
 
 class ArquivoHandler(FileSystemEventHandler):
     def process_file(self, file_path):
