@@ -152,7 +152,7 @@ def ler_arquivo_txt_zeiss(caminho):
             pass
 
 def buscar_dados_mea_mistral(todas_linhas):
-    padrao = "M" + str(datetime.now().year)[2:] + str(datetime.now().day).zfill(2)
+    padrao = "M" + str(datetime.now().year)[2:]
     for i, linha in enumerate(todas_linhas):
         if '02' in linha:
             if padrao in linha:
