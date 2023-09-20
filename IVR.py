@@ -7,19 +7,24 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import xlwings as xw
 
+pastas_planilhas = [r'\\Sch-fns03a\ds1\Inovacao1\Guilherme\Projetos\Novo IVR\Teste']
+
+pastas_monitoradas = [r'\\Sch-fns03a\ds1\Inovacao1\Guilherme\Projetos\Novo IVR\Teste']
+
 def encontrar_caminho_planilha(codigo):
+    caminho_planilha = None
     for pasta in pastas_monitoradas:
         for root, dirs, files in os.walk(pasta):
             for file in files:
                 if file.endswith(".xlsm"):
                     if codigo in file:
-                        return os.path.join(root, file)
+                        caminho_planilha = os.path.join(root, file)
+    return caminho_planilha
 
-pastas_planilhas = [r'\\Sch-fns03a\ds1\Inovacao1\Guilherme\Projetos\Novo IVR\Teste']
-
-pastas_monitoradas = [r'\\Sch-fns03a\ds1\Inovacao1\Guilherme\Projetos\Novo IVR\Teste']
 
 def buscar_dados_zeiss(todas_linhas,palavras_chave):
+    dados_medicao = None
+    codigo = None
     for i, linha in enumerate(todas_linhas):
         for palavra in palavras_chave:
             if palavra in linha:
@@ -34,9 +39,9 @@ def ler_arquivo_txt_zeiss(caminho):
             
             codigo,dados_medicao = buscar_dados_zeiss(todas_linhas,["Plano Medição","ID Teste","Data","Comentario"])
 
-            if(codigo != ""):
-                planilha = encontrar_caminho_planilha(codigo)
-                if(planilha == None):
+            if(codigo != None):
+                caminho_planilha = encontrar_caminho_planilha(codigo)
+                if(caminho_planilha == None):
                     print("Planilha não encontrada")
                 else:
                     nomes_cotas = []
@@ -78,7 +83,7 @@ def ler_arquivo_txt_zeiss(caminho):
                             desvios.append(desvio)
 
                     app = xw.App(visible=False)
-                    workbook = app.books.open(planilha)
+                    workbook = app.books.open(caminho_planilha)
                     planilha = workbook.sheets.active
                     planilha.api.Unprotect()
                     rng = planilha.range("A10:A698")
@@ -153,12 +158,14 @@ def ler_arquivo_txt_zeiss(caminho):
 
 def buscar_dados_mea_mistral(todas_linhas):
     padrao = "M" + str(datetime.now().year)[2:]
+    codigo = None
+    peca = None
     for i, linha in enumerate(todas_linhas):
         if '02' in linha:
             if padrao in linha:
                 codigo = linha[linha.index(padrao):].strip()
                 peca = todas_linhas[i + 1][5:].strip()
-                break 
+                break
     return codigo, peca
 
 def ler_arquivo_mea_mistral(caminho):
@@ -168,7 +175,7 @@ def ler_arquivo_mea_mistral(caminho):
             
             codigo, peca = buscar_dados_mea_mistral(todas_linhas)       
                     
-            if codigo != "":
+            if codigo != None:
                 caminho_planilha = encontrar_caminho_planilha(codigo)
                 if not caminho_planilha:
                     print("Planilha não encontrada")
@@ -273,29 +280,7 @@ def ler_arquivo_mea_mistral(caminho):
             app.quit()
         except:
             pass
-
-def encontrar_caminho_planilha(codigo):
-    for pasta in pastas_planilhas:
-        for arquivo in os.listdir(pasta):
-            if arquivo.endswith('.xlsm'):
-                if arquivo.find(codigo) != -1:
-                    return os.path.join(pasta, arquivo)
-    return None    
-
-class ArquivoHandler(FileSystemEventHandler):
-    def process_file(self, file_path):
-        time.sleep(1)
-        if file_path.endswith('.txt'):
-            ler_arquivo_txt_zeiss(file_path)
-        elif file_path.endswith('.MEA'):
-            ler_arquivo_mea_mistral(file_path)
-        print(f'Arquivo processado: {file_path}')
-
-    def on_created(self, event):
-        if event.is_directory:
-            return
-        self.process_file(event.src_path)
-
+        
 class ArquivoHandler(FileSystemEventHandler):
     def process_file(self, file_path):
         time.sleep(1)
