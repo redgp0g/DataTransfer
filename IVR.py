@@ -12,12 +12,14 @@ pastas_planilhas = [r'\\Sch-fns03a\ds1\Inovacao1\Guilherme\Projetos\Novo IVR\Tes
 pastas_monitoradas = [r'\\Sch-fns03a\ds1\Inovacao1\Guilherme\Projetos\Novo IVR\Teste']
 
 def encontrar_caminho_planilha(codigo):
+    caminho_planilha = None
+
     for pasta in pastas_planilhas:
         for arquivo in os.listdir(pasta):
             if arquivo.endswith('.xlsm'):
-                if arquivo.find(codigo) != -1:
-                    return os.path.join(pasta, arquivo)
-    return None    
+                if codigo in arquivo and not '~' in arquivo:
+                    caminho_planilha = os.path.join(pasta, arquivo)
+    return caminho_planilha
 
 def buscar_dados_zeiss(todas_linhas,palavras_chave):
     dados_medicao = None
