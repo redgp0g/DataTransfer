@@ -12,15 +12,12 @@ pastas_planilhas = [r'\\Sch-fns03a\ds1\Inovacao1\Guilherme\Projetos\Novo IVR\Tes
 pastas_monitoradas = [r'\\Sch-fns03a\ds1\Inovacao1\Guilherme\Projetos\Novo IVR\Teste']
 
 def encontrar_caminho_planilha(codigo):
-    caminho_planilha = None
-    for pasta in pastas_monitoradas:
-        for root, dirs, files in os.walk(pasta):
-            for file in files:
-                if file.endswith(".xlsm"):
-                    if codigo in file:
-                        caminho_planilha = os.path.join(root, file)
-    return caminho_planilha
-
+    for pasta in pastas_planilhas:
+        for arquivo in os.listdir(pasta):
+            if arquivo.endswith('.xlsm'):
+                if arquivo.find(codigo) != -1:
+                    return os.path.join(pasta, arquivo)
+    return None    
 
 def buscar_dados_zeiss(todas_linhas,palavras_chave):
     dados_medicao = None
@@ -39,7 +36,7 @@ def ler_arquivo_txt_zeiss(caminho):
             
             codigo,dados_medicao = buscar_dados_zeiss(todas_linhas,["Plano Medição","ID Teste","Data","Comentario"])
 
-            if(codigo != None):
+            if(codigo != ""):
                 caminho_planilha = encontrar_caminho_planilha(codigo)
                 if(caminho_planilha == None):
                     print("Planilha não encontrada")
@@ -145,6 +142,7 @@ def ler_arquivo_txt_zeiss(caminho):
                     workbook.save()
                     workbook.close()
                     app.quit()
+                    print("Dados transferidos corretamente!")
             else:
                 print("Código não encontrado!")
     except Exception as e:
@@ -165,7 +163,7 @@ def buscar_dados_mea_mistral(todas_linhas):
             if padrao in linha:
                 codigo = linha[linha.index(padrao):].strip()
                 peca = todas_linhas[i + 1][5:].strip()
-                break
+                break 
     return codigo, peca
 
 def ler_arquivo_mea_mistral(caminho):
@@ -175,7 +173,7 @@ def ler_arquivo_mea_mistral(caminho):
             
             codigo, peca = buscar_dados_mea_mistral(todas_linhas)       
                     
-            if codigo != None:
+            if codigo != "":
                 caminho_planilha = encontrar_caminho_planilha(codigo)
                 if not caminho_planilha:
                     print("Planilha não encontrada")
@@ -280,7 +278,7 @@ def ler_arquivo_mea_mistral(caminho):
             app.quit()
         except:
             pass
-        
+
 class ArquivoHandler(FileSystemEventHandler):
     def process_file(self, file_path):
         time.sleep(1)
@@ -294,7 +292,6 @@ class ArquivoHandler(FileSystemEventHandler):
         if event.is_directory:
             return
         self.process_file(event.src_path)
-
 
 if __name__ == "__main__":
     observer = Observer()
