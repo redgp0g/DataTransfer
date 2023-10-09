@@ -47,15 +47,17 @@ def buscar_dados_zeiss(todas_linhas,palavras_chave):
         for palavra in palavras_chave:
             if palavra in linha:
                 dados_medicao = todas_linhas[i + 1].strip()
-                codigo = dados_medicao[dados_medicao.index(padrao):][:10].strip()
-                return codigo,dados_medicao
+                index_padrao = dados_medicao.index(padrao)
+                codigo = dados_medicao[index_padrao:index_padrao + 9].strip()
+                peca = dados_medicao[index_padrao + 9:].strip()
+                return codigo,dados_medicao,peca
 
 def ler_arquivo_txt_zeiss(caminho):
     try:
         with open(caminho, 'r', encoding='latin-1') as arquivo:
             todas_linhas = arquivo.readlines()
             
-            codigo,dados_medicao = buscar_dados_zeiss(todas_linhas,["Plano Medição","ID Teste","Data","Comentario"])
+            codigo,dados_medicao,peca = buscar_dados_zeiss(todas_linhas,["Plano Medição","ID Teste","Data","Comentario"])
 
             if(codigo != None):
                 caminho_planilha = encontrar_caminho_planilha(codigo)
@@ -78,7 +80,6 @@ def ler_arquivo_txt_zeiss(caminho):
                             tolerancia_superior = cota[58:67].strip()
                             tolerancia_inferior = cota[67:76].strip()
                             desvio = cota[76:85].strip()
-                            peca = dados_medicao[66:].strip()
 
                             if not tolerancia_superior:
                                 tolerancia_superior = "0.000"
