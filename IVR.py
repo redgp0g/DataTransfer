@@ -8,21 +8,24 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import xlwings as xw
 
-log_directory = r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Registros PDF'
+log_directory = r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Histório Relatório Dimensional'
 
 log_filename = 'log_relatorio_dimensional.log'
 
 log_path = os.path.join(log_directory, log_filename)
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+#logging.basicConfig(filename=log_path,level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-pastas_planilhas = [r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Spacer',
-                    r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Taurus',
-                    r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Bosch',
-                    r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Schaeffler']
+#pastas_planilhas = [r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Spacer',
+#                    r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Taurus',
+#                    r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Bosch',
+#                    r'\\Sch-fns03a\ds1\Producao2\Registro de Inspeção\Schaeffler']
 
-pastas_monitoradas = [r'\\Sch-fns03a\ds1\Qualidade1\2021\05.Metrologia\2021\23 Cep Zeiss',
-                        r'\\Sch-fns03a\ds1\Qualidade1\2021\05.Metrologia\2021\23 Cep Dea',]
+#pastas_monitoradas = [r'\\Sch-fns03a\ds1\Qualidade1\2021\05.Metrologia\2021\23 Cep Zeiss',
+#                        r'\\Sch-fns03a\ds1\Qualidade1\2021\05.Metrologia\2021\23 Cep Dea',]
+
+pastas_monitoradas = [r'\\Sch-fns03a\ds1\Inovacao1\Guilherme\Projetos\Novo IVR\Teste']
+pastas_planilhas = [r'\\Sch-fns03a\ds1\Inovacao1\Guilherme\Projetos\Novo IVR\Teste']
 
 def buscar_primeira_linha_cota(linhas):
     for i, linha in enumerate(linhas):
@@ -35,7 +38,7 @@ def encontrar_caminho_planilha(codigo):
     for pasta in pastas_planilhas:
         for arquivo in os.listdir(pasta):
             if arquivo.endswith('.xlsm'):
-                if codigo in arquivo and not '~' in arquivo:
+                if codigo in arquivo and not '~$' in arquivo:
                     caminho_planilha = os.path.join(pasta, arquivo)
     return caminho_planilha
 
@@ -48,8 +51,8 @@ def buscar_dados_zeiss(todas_linhas,palavras_chave):
             if palavra in linha:
                 dados_medicao = todas_linhas[i + 1].strip()
                 index_padrao = dados_medicao.index(padrao)
-                codigo = dados_medicao[index_padrao:index_padrao + 9].strip()
-                peca = dados_medicao[index_padrao + 9:].strip()
+                codigo = dados_medicao[index_padrao:index_padrao + 11].strip()
+                peca = dados_medicao[index_padrao + 11:].strip()
                 return codigo,dados_medicao,peca
 
 def ler_arquivo_txt_zeiss(caminho):
@@ -182,8 +185,8 @@ def buscar_dados_mea(todas_linhas):
         if '%52' in linha:
             if padrao in linha:
                 index_padrao = linha.index(padrao)
-                codigo = linha[index_padrao:index_padrao + 9].strip()
-                peca = linha[index_padrao + 9:].strip()
+                codigo = linha[index_padrao:index_padrao + 11].strip()
+                peca = linha[index_padrao + 11:].strip()
                 break 
     return codigo, peca
 
@@ -209,7 +212,7 @@ def ler_arquivo_mea(caminho):
 
                     for cota in cotas_linhas:
                             if cota and not cota[:25].isspace():
-                                if not(Decimal(cota[56:68].strip()) == 0.000000 and Decimal(cota[56:68].strip()) == Decimal(cota[56:68].strip())):
+                                if not(Decimal(cota[56:68].strip()) == 0.000000 and Decimal(cota[43:55].strip()) == 0.000000):
                                     nomes_cotas.append(cota[:14].strip() + "_" + cota[14:16].strip())
                                     valores_encontrados.append(Decimal(cota[16:31].strip()))
                                     nominais.append(Decimal(cota[30:44].strip()))
@@ -298,33 +301,40 @@ def ler_arquivo_mea(caminho):
 class ArquivoHandler(FileSystemEventHandler):
     def process_file(self, file_path):
         time.sleep(1)
-        if file_path.endswith('.txt'):
-            ler_arquivo_txt_zeiss(file_path)
+        try:
+            if file_path.endswith('.txt'):
+                ler_arquivo_txt_zeiss(file_path)
+            elif file_path.endswith('.MEA'):
+                ler_arquivo_mea(file_path)
+
             arquivo_nome = os.path.basename(file_path)
             logging.info(f'Arquivo processado: {arquivo_nome}')
-        elif file_path.endswith('.MEA'):
-            ler_arquivo_mea(file_path)
-            arquivo_nome = os.path.basename(file_path)
-            logging.info(f'Arquivo processado: {arquivo_nome}')
+        except Exception as e:
+            logging.error(f'Erro ao processar o arquivo {file_path}: {e}')
 
     def on_created(self, event):
         if event.is_directory:
             return
         self.process_file(event.src_path)
 
-if __name__ == "__main__":
-    observer = Observer()
-    event_handler = ArquivoHandler()
-
-    for pasta in pastas_monitoradas:
-        observer.schedule(event_handler, path=pasta, recursive=False)
-
-    observer.start()
-
+while True:
     try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        observer.stop()
+        if __name__ == "__main__":
+            observer = Observer()
+            event_handler = ArquivoHandler()
 
-    observer.join() 
+            for pasta in pastas_monitoradas:
+                observer.schedule(event_handler, path=pasta, recursive=False)
+
+            observer.start()
+
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                observer.stop()
+
+            observer.join()
+    except Exception as e:
+        logging.error(f'Erro durante a execução: {e}')
+        time.sleep(1)  # Aguarda um segundo antes de tentar novamente
